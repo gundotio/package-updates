@@ -1,0 +1,75 @@
+name: PHP updates
+
+inputs:
+  title:
+    default: Package updates [php]
+  branch:
+    description: The pull request branch name.
+    default: package-updates/php
+  commit:
+    description: The message to use when committing changes.
+  post-update:
+    description: Steps to perform after updating the dependencies.
+  labels:
+    description: A comma or newline separated list of labels.
+    default: |
+      dependencies
+      php
+  assignees:
+    description: A comma or newline separated list of assignees (GitHub usernames).
+  reviewers:
+    description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
+
+outputs:
+  composer-lock-diff:
+    description: The composer.lock diff.
+    value: ${{ steps.composer-lock-diff.outputs.diff }}
+  pull-request-number:
+    description: The pull request number.
+    value: ${{ steps.pull-request.outputs.pull-request-number }}
+  pull-request-url:
+    description: The URL of the pull request.
+    value: ${{ steps.pull-request.outputs.pull-request-url }}
+  pull-request-operation:
+    description: The pull request operation performed by the action, `created`, `updated` or `closed`.
+    value: ${{ steps.pull-request.outputs.pull-request-operation }}
+  pull-request-head-sha:
+    description: The commit SHA of the pull request branch.
+    value: ${{ steps.pull-request.outputs.pull-request-head-sha }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: shivammathur/setup-php@v2
+
+    - run: composer update --no-scripts
+      shell: bash
+
+    - if: inputs.post-update
+      run: ${{ inputs.post-update }}
+      shell: bash
+
+    - id: composer-lock-diff
+      run: |
+        composer global require davidrjonas/composer-lock-diff:^1.0
+        echo 'diff<<EOF' >> $GITHUB_OUTPUT
+        composer-lock-diff --md >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+      shell: bash
+
+    - id: pull-request
+      uses: peter-evans/create-pull-request@v4
+      with:
+        title: ${{ inputs.title }}
+        body: ${{ steps.composer-lock-diff.outputs.diff }}
+        author: GitHub <noreply@github.com>
+        branch: ${{ inputs.branch }}
+        committer: GitHub <noreply@github.com>
+        commit-message: |
+          ${{ inputs.commit || inputs.title }}
+
+          ${{ steps.composer-lock-diff.outputs.diff }}
+        delete-branch: true
+        assignees: ${{ inputs.assignees }}
+        labels: ${{ inputs.labels }}
+        reviewers: ${{ inputs.reviewers }}

@@ -1,0 +1,86 @@
+name: Python updates
+
+inputs:
+  title:
+    default: Package updates [python]
+  branch:
+    description: The pull request branch name.
+    default: package-updates/python
+  commit:
+    description: The message to use when committing changes.
+  post-update:
+    description: Steps to perform after updating the dependencies.
+  labels:
+    description: A comma or newline separated list of labels.
+    default: |
+      dependencies
+      python
+  assignees:
+    description: A comma or newline separated list of assignees (GitHub usernames).
+  reviewers:
+    description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
+
+outputs:
+  pipfile-lock-diff:
+    description: The Pipfile.lock diff.
+    value: ${{ steps.pipfile-lock-diff.outputs.diff }}
+  pull-request-number:
+    description: The pull request number.
+    value: ${{ steps.pull-request.outputs.pull-request-number }}
+  pull-request-url:
+    description: The URL of the pull request.
+    value: ${{ steps.pull-request.outputs.pull-request-url }}
+  pull-request-operation:
+    description: The pull request operation performed by the action, `created`, `updated` or `closed`.
+    value: ${{ steps.pull-request.outputs.pull-request-operation }}
+  pull-request-head-sha:
+    description: The commit SHA of the pull request branch.
+    value: ${{ steps.pull-request.outputs.pull-request-head-sha }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v4
+
+    - run: cp Pipfile.lock{,.bak}
+      shell: bash
+
+    - run: pip install --disable-pip-version-check pipenv wheel --upgrade
+      shell: bash
+
+    - run: pipenv update
+      shell: bash
+
+    - id: pipfile-lock-diff
+      run: |
+        echo 'diff<<EOF' >> $GITHUB_OUTPUT
+        python ${{ github.action_path }}/pipenvdiff.py Pipfile.lock{.bak,} >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+      shell: bash
+
+    - run: rm Pipfile.lock.bak
+      shell: bash
+
+    - if: inputs.post-update
+      run: ${{ inputs.post-update }}
+      shell: bash
+
+    - id: pull-request
+      uses: peter-evans/create-pull-request@v4
+      with:
+        title: ${{ inputs.title }}
+        body: |
+          ```
+          ${{ steps.pipfile-lock-diff.outputs.diff }}
+          ```
+        author: GitHub <noreply@github.com>
+        branch: ${{ inputs.branch }}
+        committer: GitHub <noreply@github.com>
+        commit-message: |
+          ${{ inputs.commit || inputs.title }}
+
+          ${{ steps.pipfile-lock-diff.outputs.diff }}
+        delete-branch: true
+        assignees: ${{ inputs.assignees }}
+        labels: ${{ inputs.labels }}
+        reviewers: ${{ inputs.reviewers }}

@@ -1,0 +1,93 @@
+name: Node updates
+
+inputs:
+  title:
+    default: Package updates [node]
+  branch:
+    description: The pull request branch name.
+    default: package-updates/node
+  commit:
+    description: The message to use when committing changes.
+  post-update:
+    description: Steps to perform after updating the dependencies.
+  labels:
+    description: A comma or newline separated list of labels.
+    default: |
+      dependencies
+      javascript
+  assignees:
+    description: A comma or newline separated list of assignees (GitHub usernames).
+  reviewers:
+    description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
+
+outputs:
+  package-lock-diff:
+    description: The package-lock.json diff.
+    value: ${{ steps.package-lock-diff.outputs.diff }}
+  pull-request-number:
+    description: The pull request number.
+    value: ${{ steps.pull-request.outputs.pull-request-number }}
+  pull-request-url:
+    description: The URL of the pull request.
+    value: ${{ steps.pull-request.outputs.pull-request-url }}
+  pull-request-operation:
+    description: The pull request operation performed by the action, `created`, `updated` or `closed`.
+    value: ${{ steps.pull-request.outputs.pull-request-operation }}
+  pull-request-head-sha:
+    description: The commit SHA of the pull request branch.
+    value: ${{ steps.pull-request.outputs.pull-request-head-sha }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v3
+
+    - run: cp package-lock.json{,.bak}
+      shell: bash
+
+    - run: npm install -g npm-check-updates
+      shell: bash
+
+    - run: ncu --target minor --upgrade
+      shell: bash
+
+    - run: npm update
+      shell: bash
+
+    - run: npm install
+      shell: bash
+
+    - if: inputs.post-update
+      run: ${{ inputs.post-update }}
+      shell: bash
+
+    - id: package-lock-diff
+      run: |
+        npm install -g stevelacey/lock-diff
+        echo 'diff<<EOF' >> $GITHUB_OUTPUT
+        lock-diff package-lock.json{.bak,} | sort >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+      shell: bash {0}
+
+    - run: rm package-lock.json.bak
+      shell: bash
+
+    - id: pull-request
+      uses: peter-evans/create-pull-request@v4
+      with:
+        title: ${{ inputs.title }}
+        body: |
+          ```
+          ${{ steps.package-lock-diff.outputs.diff }}
+          ```
+        author: GitHub <noreply@github.com>
+        branch: ${{ inputs.branch }}
+        committer: GitHub <noreply@github.com>
+        commit-message: |
+          ${{ inputs.commit || inputs.title }}
+
+          ${{ steps.package-lock-diff.outputs.diff }}
+        delete-branch: true
+        assignees: ${{ inputs.assignees }}
+        labels: ${{ inputs.labels }}
+        reviewers: ${{ inputs.reviewers }}
