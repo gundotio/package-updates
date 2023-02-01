@@ -21,9 +21,6 @@ inputs:
     description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
 
 outputs:
-  pipfile-lock-diff:
-    description: The Pipfile.lock diff.
-    value: ${{ steps.pipfile-lock-diff.outputs.diff }}
   pull-request-number:
     description: The pull request number.
     value: ${{ steps.pull-request.outputs.pull-request-number }}
@@ -42,23 +39,26 @@ runs:
   steps:
     - uses: actions/setup-python@v4
 
-    - run: cp Pipfile.lock{,.bak}
-      shell: bash
-
-    - run: pip install --disable-pip-version-check pipenv wheel --upgrade
-      shell: bash
-
-    - run: pipenv update
-      shell: bash
-
-    - id: pipfile-lock-diff
+    - id: update
       run: |
-        echo 'diff<<EOF' >> $GITHUB_OUTPUT
-        python ${{ github.action_path }}/pipenvdiff.py Pipfile.lock{.bak,} >> $GITHUB_OUTPUT
-        echo 'EOF' >> $GITHUB_OUTPUT
-      shell: bash
-
-    - run: rm Pipfile.lock.bak
+        if [ -f Pipfile.lock ]; then
+          cp Pipfile.lock{,.bak}
+          pipx install pipenv
+          pipenv update
+          echo 'diff<<EOF' >> $GITHUB_OUTPUT
+          python ${{ github.action_path }}/pipenvdiff.py Pipfile.lock{.bak,} >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+          rm Pipfile.lock.bak
+        elif [ -f poetry.lock ]; then
+          pipx install poetry
+          poetry install
+          echo 'diff<<EOF' >> $GITHUB_OUTPUT
+          poetry update | grep • | sed 's/  • //g' | \
+            sed -E 's/Installing (.*)/\1 added/g' | \
+            sed -E 's/Removing (.*)/\1 removed/g' | \
+            sed 's/Updating //g' | sort >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+        fi
       shell: bash
 
     - if: inputs.post-update
@@ -71,7 +71,7 @@ runs:
         title: ${{ inputs.title }}
         body: |
           ```
-          ${{ steps.pipfile-lock-diff.outputs.diff }}
+          ${{ steps.update.outputs.diff }}
           ```
         author: GitHub <noreply@github.com>
         branch: ${{ inputs.branch }}
@@ -79,7 +79,7 @@ runs:
         commit-message: |
           ${{ inputs.commit || inputs.title }}
 
-          ${{ steps.pipfile-lock-diff.outputs.diff }}
+          ${{ steps.update.outputs.diff }}
         delete-branch: true
         assignees: ${{ inputs.assignees }}
         labels: ${{ inputs.labels }}
