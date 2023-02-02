@@ -29,4 +29,4 @@ for group in (set(base.keys()) | set(head.keys())) - {"_meta"}:
         if name not in base_packages.keys():
             changes.append(f"{name} added")
 
-print("\n".join(sorted(changes)))
+print("\n".join(sorted(set(changes))))
