@@ -21,6 +21,9 @@ inputs:
     description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
 
 outputs:
+  package-changes:
+    description: The package changes in the update.
+    value: ${{ steps.update.outputs.diff }}
   pull-request-number:
     description: The pull request number.
     value: ${{ steps.pull-request.outputs.pull-request-number }}

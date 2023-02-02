@@ -21,8 +21,8 @@ inputs:
     description: A comma or newline separated list of reviewers (GitHub usernames) to request a review from.
 
 outputs:
-  composer-lock-diff:
-    description: The composer.lock diff.
+  package-changes:
+    description: The package changes in the update.
     value: ${{ steps.composer-lock-diff.outputs.diff }}
   pull-request-number:
     description: The pull request number.
@@ -52,8 +52,14 @@ runs:
     - id: composer-lock-diff
       run: |
         composer global require davidrjonas/composer-lock-diff:^1.0
+        sudo apt-get install -y jq
         echo 'diff<<EOF' >> $GITHUB_OUTPUT
-        composer-lock-diff --md >> $GITHUB_OUTPUT
+        composer-lock-diff --json | jq '.["changes"] + .["changes-dev"]' | \
+          jq -r 'keys[] as $k | "\($k) \(.[$k] | .[0]) -> \(.[$k] | .[1])"' | \
+          sed -E 's/(.*) NEW -> .*/\1 added/g' | \
+          sed -E 's/(.*) .* -> REMOVED/\1 removed/g' | \
+          sed -E 's/(.*) v(.*) -> v(.*)/\1 \2 -> \3/g' | \
+          sort >> $GITHUB_OUTPUT
         echo 'EOF' >> $GITHUB_OUTPUT
       shell: bash
 
@@ -61,7 +67,10 @@ runs:
       uses: peter-evans/create-pull-request@v4
       with:
         title: ${{ inputs.title }}
-        body: ${{ steps.composer-lock-diff.outputs.diff }}
+        body: |
+          ```
+          ${{ steps.composer-lock-diff.outputs.diff }}
+          ```
         author: GitHub <noreply@github.com>
         branch: ${{ inputs.branch }}
         committer: GitHub <noreply@github.com>
