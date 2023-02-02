@@ -54,9 +54,10 @@ runs:
           poetry install
           echo 'diff<<EOF' >> $GITHUB_OUTPUT
           poetry update | grep • | sed 's/  • //g' | \
-            sed -E 's/Installing (.*)/\1 added/g' | \
-            sed -E 's/Removing (.*)/\1 removed/g' | \
-            sed 's/Updating //g' | sort >> $GITHUB_OUTPUT
+            sed -E 's/Installing (.*) \(.*\)/\1 added/g' | \
+            sed -E 's/Removing (.*) \(.*\)/\1 removed/g' | \
+            sed -E 's/Updating (.*) \((.*)\)/\1 \2/g' | \
+            sort >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
         fi
       shell: bash

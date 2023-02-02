@@ -23,7 +23,7 @@ for group in (set(base.keys()) | set(head.keys())) - {"_meta"}:
         base_version = re.sub(r"[=]", "", info.get("version", ""))
         head_version = re.sub(r"[=]", "", head_packages[name].get("version", ""))
         if not base_version == head_version:
-            changes.append(f"{name}: {base_version} -> {head_version}")
+            changes.append(f"{name} {base_version} -> {head_version}")
 
     for name, info in head_packages.items():
         if name not in base_packages.keys():
