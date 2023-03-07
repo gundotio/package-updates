@@ -50,7 +50,7 @@ runs:
     - run: npm install -g npm-check-updates
       shell: bash
 
-    - run: ncu --target minor --upgrade
+    - run: ncu --filterVersion "^*" --target minor --upgrade
       shell: bash
 
     - run: npm update
